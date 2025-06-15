@@ -2,24 +2,59 @@ name: 📈 Update Global Top-Played Song
 
 on:
   schedule:
-    - cron: '0 5 * * *'         # Every day at 05:00 UTC
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with: python-version: '3.10'
-      - run: pip install -r requirements.txt
-      - env:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🔄 Try to update README with Spotify data
+        id: update_script
+        env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-        run: python scripts/update_readme.py
-      - run: |
+        run: |
+          set -e
+          python scripts/update_readme.py || echo "::set-output name=failed::true"
+
+      - name: 📝 Write fallback README if script failed
+        if: steps.update_script.outputs.failed == 'true'
+        run: |
+          echo "# 🌍 Today’s Most Played Song Globally" > README.md
+          echo "" >> README.md
+          echo "⚠️ Could not fetch data today — Spotify API or scraping failed." >> README.md
+          echo "" >> README.md
+          echo "🕒 Updated: $(date -u '+%Y-%m-%d %H:%M UTC')" >> README.md
+
+      - name: 🚀 Commit and push changes
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md
-          git commit -m "📊 Update top played song [skip ci]" || echo "No changes"
+          git commit -m "📊 Daily update or fallback [skip ci]" || echo "No changes"
           git push
+
+      - name: ❗ Create GitHub Issue if update failed
+        if: steps.update_script.outputs.failed == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "⚠️ Daily update failed - Spotify or Kworb error",
+              body: "The scheduled action failed to fetch or scrape data. Please check `scripts/update_readme.py` or the Spotify/Kworb APIs.",
+            })
