@@ -2,4 +2,4 @@
 
 ⚠️ Could not fetch data today — Spotify API or scraping failed.
 
-🕒 Updated: 2025-06-16 14:43 UTC
+🕒 Updated: 2025-06-16 14:51 UTC
