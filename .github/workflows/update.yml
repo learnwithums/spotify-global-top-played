@@ -28,10 +28,12 @@ jobs:
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: |
           set -e
-          python scripts/update_readme.py || echo "::set-output name=failed::true"
+          if ! python scripts/update_readme.py; then
+            echo "failed=true" >> "$GITHUB_ENV"
+          fi
 
       - name: 📝 Write fallback README if script failed
-        if: steps.update_script.outputs.failed == 'true'
+        if: env.failed == 'true'
         run: |
           echo "# 🌍 Today’s Most Played Song Globally" > README.md
           echo "" >> README.md
@@ -48,7 +50,7 @@ jobs:
           git push
 
       - name: ❗ Create GitHub Issue if update failed
-        if: steps.update_script.outputs.failed == 'true'
+        if: env.failed == 'true'
         uses: actions/github-script@v6
         with:
           script: |
