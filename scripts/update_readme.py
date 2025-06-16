@@ -1,51 +1,36 @@
-import os, requests
-from bs4 import BeautifulSoup
+import os
+import requests
 from datetime import datetime
 
-# Spotify config
-SPOTIFY_PLAYLIST = "37i9dQZEVXbMDoHDwVN2tF"
+README_FILE = "README.md"
 
-def get_spotify_token():
-    r = requests.post("https://accounts.spotify.com/api/token",
+def get_token():
+    client_id = os.getenv("SPOTIFY_CLIENT_ID")
+    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        raise Exception("Missing Spotify credentials.")
+
+    resp = requests.post(
+        "https://accounts.spotify.com/api/token",
         data={"grant_type": "client_credentials"},
-        auth=(os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")))
-    return r.json()["access_token"]
+        auth=(client_id, client_secret)
+    )
 
-def get_top_spotify_track(token):
-    r = requests.get(f"https://api.spotify.com/v1/playlists/{SPOTIFY_PLAYLIST}",
-                     headers={"Authorization": f"Bearer {token}"})
-    top = r.json()["tracks"]["items"][0]["track"]
-    return {
-        "name": top["name"],
-        "artist": top["artists"][0]["name"],
-        "url": top["external_urls"]["spotify"]
-    }
+    data = resp.json()
+    if "access_token" not in data:
+        raise Exception(f"Auth failed: {data}")
 
-def scrape_kworb_top_streams():
-    url = "https://kworb.net/spotify/country/global_daily.html"
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, "html.parser")
-    first_row = soup.select_one("table tr:nth-of-type(2)")
-    cols = first_row.find_all("td")
-    title = cols[1].text.strip()
-    artist = cols[1].text.split("–")[0].strip()
-    streams = cols[3].text.strip().replace(",", "")
-    return {"title": title, "artist": artist, "streams": int(streams)}
+    return data["access_token"]
 
-def generate_readme(track, stats):
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    with open("README.md", "w", encoding="utf-8") as f:
-        f.write(f"# 🌍 Today’s Most Played Song Globally — {now}\n\n")
-        f.write(f"🎧 **{track['name']}** by **{track['artist']}**\n\n")
-        f.write(f"🔢 **Estimated streams today:** ~{stats['streams']:,}\n\n")
-        f.write(f"[▶️ Listen on Spotify]({track['url']})\n\n")
-        f.write(f"🕒 Updated: {now}\n")
+def get_top_tracks(token, playlist_id, count=5):
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks?limit={count}"
+    resp = requests.get(url, headers=headers)
+    tracks = []
 
-def main():
-    token = get_spotify_token()
-    top = get_top_spotify_track(token)
-    stats = scrape_kworb_top_streams()
-    generate_readme(top, stats)
-
-if __name__ == "__main__":
-    main()
+    for item in resp.json().get("items", []):
+        track = item.get("track", {})
+        name = track.get("name")
+        url = track.get("external_urls", {}).get("spotify", "#")
+        artists = ", ".j
